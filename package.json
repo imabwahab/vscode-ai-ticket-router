@@ -4,12 +4,13 @@
   "description": "Transform Linear tickets into structured, AI-assisted development workflows inside VS Code.",
   "version": "0.0.1",
   "publisher": "flair",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -35,6 +36,10 @@
       ]
     },
     "commands": [
+      {
+        "command": "aitr.hello",
+        "title": "AI Ticket Router: Hello"
+      },
       {
         "command": "aitr.connect",
         "title": "AI Ticket Router: Connect to Linear"
@@ -119,14 +124,23 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && node esbuild.js",
+    "watch": "npm-run-all -p watch:esbuild watch:tsc",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && node esbuild.js --production",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint --ext .ts src"
   },
   "devDependencies": {
-    "@types/vscode": "^1.90.0",
     "@types/node": "^20.x",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.21.0",
+    "eslint": "^8.57.0",
+    "npm-run-all2": "^6.2.0",
     "typescript": "^5.4.0"
   },
   "dependencies": {
