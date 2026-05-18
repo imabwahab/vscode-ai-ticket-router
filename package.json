@@ -1,0 +1,135 @@
+{
+  "name": "vscode-ai-ticket-router",
+  "displayName": "AI Ticket Router",
+  "description": "Transform Linear tickets into structured, AI-assisted development workflows inside VS Code.",
+  "version": "0.0.1",
+  "publisher": "flair",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aitr-sidebar",
+          "title": "AI Ticket Router",
+          "icon": "$(rocket)"
+        }
+      ]
+    },
+    "views": {
+      "aitr-sidebar": [
+        {
+          "id": "aitr.ticketsView",
+          "name": "Tickets",
+          "when": "aitr.authenticated"
+        },
+        {
+          "id": "aitr.setupView",
+          "name": "Setup",
+          "when": "!aitr.authenticated"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "aitr.connect",
+        "title": "AI Ticket Router: Connect to Linear"
+      },
+      {
+        "command": "aitr.disconnect",
+        "title": "AI Ticket Router: Disconnect"
+      },
+      {
+        "command": "aitr.selectProjects",
+        "title": "AI Ticket Router: Select Projects"
+      },
+      {
+        "command": "aitr.refreshTickets",
+        "title": "AI Ticket Router: Refresh Tickets",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aitr.runPlan",
+        "title": "Run Plan Phase"
+      },
+      {
+        "command": "aitr.runPlanReview",
+        "title": "Run Plan Review Phase"
+      },
+      {
+        "command": "aitr.runImplement",
+        "title": "Run Implement Phase"
+      },
+      {
+        "command": "aitr.runCodeReview",
+        "title": "Run Code Review Phase"
+      },
+      {
+        "command": "aitr.runBugHunt",
+        "title": "Run Bug Hunt Phase"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "aitr.refreshTickets",
+          "when": "view == aitr.ticketsView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Ticket Router",
+      "properties": {
+        "aitr.cliCommand": {
+          "type": "string",
+          "default": "claude",
+          "description": "The CLI command used to launch Claude Code sessions."
+        },
+        "aitr.prompts.plan": {
+          "type": "string",
+          "default": "You are a senior software engineer. Analyze the following Linear ticket and the current codebase. Produce a detailed implementation plan in .aitr/{ticketId}/plan.md. Include: problem summary, proposed solution, files to modify, step-by-step approach, risks, and open questions. Do NOT modify any source code.",
+          "description": "Prompt template for the Plan phase. Use {ticketId}, {ticketTitle}, {ticketDescription}, {branch}, {repoRoot} as variables."
+        },
+        "aitr.prompts.planReview": {
+          "type": "string",
+          "default": "You are a critical senior engineer performing adversarial review. Read .aitr/{ticketId}/plan.md and identify flaws, missing edge cases, incorrect assumptions, and gaps. Write your findings to .aitr/{ticketId}/plan-review.md. Do NOT modify any source code.",
+          "description": "Prompt template for the Plan Review phase."
+        },
+        "aitr.prompts.implement": {
+          "type": "string",
+          "default": "You are a senior software engineer. Read .aitr/{ticketId}/plan.md and .aitr/{ticketId}/plan-review.md if it exists. Implement the plan: modify source code, run tests, and fix any failures. Follow existing code conventions.",
+          "description": "Prompt template for the Implement phase."
+        },
+        "aitr.prompts.codeReview": {
+          "type": "string",
+          "default": "You are a senior code reviewer. Review the diff between the current branch and the default branch. Write a detailed review to .aitr/{ticketId}/code-review.md covering: correctness, edge cases, performance, security, and style. Do NOT modify any source code.",
+          "description": "Prompt template for the Code Review phase."
+        },
+        "aitr.prompts.bugHunt": {
+          "type": "string",
+          "default": "You are an adversarial QA engineer. Aggressively search the changes on this branch for edge cases, race conditions, regressions, null pointer risks, and hidden defects. Write all findings to .aitr/{ticketId}/bugs.md. Do NOT modify any source code.",
+          "description": "Prompt template for the Bug Hunt phase."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/node": "^20.x",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@linear/sdk": "^30.0.0"
+  }
+}
