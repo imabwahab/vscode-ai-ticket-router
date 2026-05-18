@@ -1,8 +1,13 @@
 import * as vscode from "vscode";
 import { LinearKeyStore } from "./auth/secretStorage";
+import { LinearClient } from "./linear/client";
 
 export async function activate(context: vscode.ExtensionContext) {
+  const output = vscode.window.createOutputChannel("AITR");
+  context.subscriptions.push(output);
+
   const keyStore = new LinearKeyStore(context.secrets);
+  const linearClient = new LinearClient(keyStore, output);
 
   let isAuthenticated = false;
   try {
@@ -55,6 +60,47 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage("AI Ticket Router: Linear API key removed successfully.");
       } catch {
         vscode.window.showErrorMessage("AI Ticket Router: Failed to remove the API key. Please try again.");
+      }
+    }),
+
+    vscode.commands.registerCommand("aitr.debugFetchProjects", async () => {
+      output.show(true);
+      try {
+        const projects = await linearClient.listProjects();
+        output.appendLine("=== Projects ===");
+        for (const p of projects) {
+          output.appendLine(`  [${p.state}] ${p.name} (${p.teamName}) — ${p.id}`);
+        }
+        output.appendLine(`=== Total: ${projects.length} ===`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
+      }
+    }),
+
+    vscode.commands.registerCommand("aitr.debugFetchTickets", async () => {
+      output.show(true);
+      const selectedProjects = context.globalState.get<string[]>("aitr.selectedProjectIds", []);
+
+      if (selectedProjects.length === 0) {
+        vscode.window.showWarningMessage(
+          "AI Ticket Router: No projects selected. Use 'Select Projects' first."
+        );
+        return;
+      }
+
+      try {
+        const tickets = await linearClient.getProjectTickets(selectedProjects);
+        output.appendLine("=== Tickets ===");
+        for (const t of tickets) {
+          output.appendLine(`  [${t.state.name}] ${t.identifier}: ${t.title}`);
+          output.appendLine(`    Project: ${t.projectName} | Priority: ${t.priority} | Labels: ${t.labels.join(", ") || "none"}`);
+          output.appendLine(`    ${t.url}`);
+        }
+        output.appendLine(`=== Total: ${tickets.length} ===`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
       }
     }),
 
