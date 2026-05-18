@@ -4,7 +4,14 @@ import { LinearKeyStore } from "./auth/secretStorage";
 export async function activate(context: vscode.ExtensionContext) {
   const keyStore = new LinearKeyStore(context.secrets);
 
-  const isAuthenticated = await keyStore.exists();
+  let isAuthenticated = false;
+  try {
+    isAuthenticated = await keyStore.exists();
+  } catch {
+    vscode.window.showWarningMessage(
+      "AI Ticket Router: Unable to access secure credential storage. Continuing in an unauthenticated state."
+    );
+  }
   vscode.commands.executeCommand("setContext", "aitr.authenticated", isAuthenticated);
 
   context.subscriptions.push(
@@ -35,14 +42,14 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand("aitr.clearLinearKey", async () => {
-      const exists = await keyStore.exists();
-
-      if (!exists) {
-        vscode.window.showWarningMessage("AI Ticket Router: No API key found to remove.");
-        return;
-      }
-
       try {
+        const exists = await keyStore.exists();
+
+        if (!exists) {
+          vscode.window.showWarningMessage("AI Ticket Router: No API key found to remove.");
+          return;
+        }
+
         await keyStore.delete();
         vscode.commands.executeCommand("setContext", "aitr.authenticated", false);
         vscode.window.showInformationMessage("AI Ticket Router: Linear API key removed successfully.");
