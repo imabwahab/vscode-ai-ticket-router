@@ -64,18 +64,22 @@ export class LinearClient {
     this.log("listProjects: request started");
     try {
       const sdk = await this.getSdkClient();
-      const result = await sdk.projects({ includeArchived: false });
       const projects: ProjectData[] = [];
 
-      for (const project of result.nodes) {
-        const teams = await project.teams();
-        projects.push({
-          id: project.id,
-          name: project.name,
-          teamName: teams.nodes[0]?.name ?? "Unknown Team",
-          state: project.state,
-        });
-      }
+      let cursor: string | undefined;
+      do {
+        const page = await sdk.projects({ includeArchived: false, first: 100, after: cursor });
+        for (const project of page.nodes) {
+          const teams = await project.teams();
+          projects.push({
+            id: project.id,
+            name: project.name,
+            teamName: teams.nodes[0]?.name ?? "Unknown Team",
+            state: project.state,
+          });
+        }
+        cursor = page.pageInfo.hasNextPage ? (page.pageInfo.endCursor ?? undefined) : undefined;
+      } while (cursor !== undefined);
 
       this.log(`listProjects: returned ${projects.length} project(s)`);
       return projects;
@@ -97,46 +101,52 @@ export class LinearClient {
       for (const projectId of projectIds) {
         this.log(`getProjectTickets: fetching project ${projectId}`);
 
-        const result = await sdk.issues({
-          first: 100,
-          filter: {
-            project: { id: { eq: projectId } },
-            state: { type: { nin: EXCLUDED_STATE_TYPES } },
-          },
-        });
-
-        for (const issue of result.nodes) {
-          const [state, project, labelConn, commentConn] = await Promise.all([
-            issue.state,
-            issue.project,
-            issue.labels(),
-            issue.comments(),
-          ]);
-
-          const comments = await Promise.all(
-            commentConn.nodes.map(async (c) => ({
-              body: c.body,
-              author: (await c.user)?.name ?? "Unknown",
-            }))
-          );
-
-          tickets.push({
-            id: issue.id,
-            identifier: issue.identifier,
-            title: issue.title,
-            description: issue.description ?? undefined,
-            priority: issue.priority,
-            url: issue.url,
-            state: {
-              name: state?.name ?? "Unknown",
-              type: state?.type ?? "unknown",
+        let cursor: string | undefined;
+        do {
+          const page = await sdk.issues({
+            first: 100,
+            after: cursor,
+            filter: {
+              project: { id: { eq: projectId } },
+              state: { type: { nin: EXCLUDED_STATE_TYPES } },
             },
-            projectId: project?.id ?? projectId,
-            projectName: project?.name ?? "Unknown",
-            labels: labelConn.nodes.map((l) => l.name),
-            comments,
           });
-        }
+
+          for (const issue of page.nodes) {
+            const [state, project, labelConn, commentConn] = await Promise.all([
+              issue.state,
+              issue.project,
+              issue.labels(),
+              issue.comments(),
+            ]);
+
+            const comments = await Promise.all(
+              commentConn.nodes.map(async (c) => ({
+                body: c.body,
+                author: (await c.user)?.name ?? "Unknown",
+              }))
+            );
+
+            tickets.push({
+              id: issue.id,
+              identifier: issue.identifier,
+              title: issue.title,
+              description: issue.description ?? undefined,
+              priority: issue.priority,
+              url: issue.url,
+              state: {
+                name: state?.name ?? "Unknown",
+                type: state?.type ?? "unknown",
+              },
+              projectId: project?.id ?? projectId,
+              projectName: project?.name ?? "Unknown",
+              labels: labelConn.nodes.map((l) => l.name),
+              comments,
+            });
+          }
+
+          cursor = page.pageInfo.hasNextPage ? (page.pageInfo.endCursor ?? undefined) : undefined;
+        } while (cursor !== undefined);
       }
 
       this.log(`getProjectTickets: returned ${tickets.length} ticket(s) across ${projectIds.length} project(s)`);

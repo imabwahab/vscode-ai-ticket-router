@@ -80,17 +80,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("aitr.debugFetchTickets", async () => {
       output.show(true);
-      const selectedProjects = context.globalState.get<string[]>("aitr.selectedProjectIds", []);
-
-      if (selectedProjects.length === 0) {
-        vscode.window.showWarningMessage(
-          "AI Ticket Router: No projects selected. Use 'Select Projects' first."
-        );
-        return;
-      }
-
       try {
-        const tickets = await linearClient.getProjectTickets(selectedProjects);
+        const projects = await linearClient.listProjects();
+        const picks = await vscode.window.showQuickPick(
+          projects.map((p) => ({ label: p.name, description: p.teamName, id: p.id })),
+          { canPickMany: true, title: "Select projects to fetch tickets from" }
+        );
+
+        if (!picks || picks.length === 0) {
+          return;
+        }
+
+        const tickets = await linearClient.getProjectTickets(picks.map((p) => p.id));
         output.appendLine("=== Tickets ===");
         for (const t of tickets) {
           output.appendLine(`  [${t.state.name}] ${t.identifier}: ${t.title}`);
