@@ -41,6 +41,14 @@
         "title": "AI Ticket Router: Hello"
       },
       {
+        "command": "aitr.setLinearKey",
+        "title": "AI Ticket Router: Set Linear API Key"
+      },
+      {
+        "command": "aitr.clearLinearKey",
+        "title": "AI Ticket Router: Clear Linear API Key"
+      },
+      {
         "command": "aitr.connect",
         "title": "AI Ticket Router: Connect to Linear"
       },
