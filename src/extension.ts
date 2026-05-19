@@ -1,7 +1,20 @@
 import * as vscode from "vscode";
 import { LinearKeyStore } from "./auth/secretStorage";
-import { LinearClient } from "./linear/client";
+import { LinearClient, TicketData } from "./linear/client";
 import { TicketsTreeProvider } from "./providers/ticketsTreeProvider";
+import { detectCurrentBranch } from "./git/branchDetector";
+
+interface TicketQuickPickItem extends vscode.QuickPickItem {
+  ticket: TicketData;
+}
+
+interface ActiveTicket {
+  ticketId: string;
+  identifier: string;
+  title: string;
+  projectName: string;
+  branch: string | null;
+}
 
 const SELECTED_PROJECT_IDS_KEY = "aitr.selectedProjectIds";
 
@@ -182,6 +195,92 @@ export async function activate(context: vscode.ExtensionContext) {
         const message = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
       }
+    }),
+
+    vscode.commands.registerCommand("aitr.pickTicket", async () => {
+      const selectedIds = context.globalState.get<string[]>(SELECTED_PROJECT_IDS_KEY, []);
+
+      if (selectedIds.length === 0) {
+        vscode.window.showWarningMessage(
+          "AI Ticket Router: No projects selected. Run 'Select Projects' first."
+        );
+        return;
+      }
+
+      // Show QuickPick immediately with a loading spinner while fetching
+      const qp = vscode.window.createQuickPick<TicketQuickPickItem>();
+      qp.placeholder = "Loading tickets...";
+      qp.matchOnDescription = true;
+      qp.busy = true;
+      qp.show();
+
+      let tickets: TicketData[];
+      try {
+        tickets = await linearClient.getProjectTickets(selectedIds);
+      } catch (err) {
+        qp.hide();
+        qp.dispose();
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
+        return;
+      }
+
+      if (tickets.length === 0) {
+        qp.hide();
+        qp.dispose();
+        vscode.window.showInformationMessage(
+          "AI Ticket Router: No open tickets found in the selected projects."
+        );
+        return;
+      }
+
+      qp.items = tickets.map((t) => ({
+        label: `[${t.projectName}] ${t.identifier} — ${t.title}`,
+        description: t.state.name,
+        ticket: t,
+      }));
+      qp.busy = false;
+      qp.placeholder = "Select a ticket to work on";
+
+      // onDidAccept stores the selection and hides; onDidHide always resolves
+      let selectedItem: TicketQuickPickItem | undefined;
+      qp.onDidAccept(() => {
+        selectedItem = qp.selectedItems[0];
+        qp.hide();
+      });
+
+      const selectedTicket = await new Promise<TicketData | undefined>((resolve) => {
+        qp.onDidHide(() => {
+          qp.dispose();
+          resolve(selectedItem?.ticket);
+        });
+      });
+
+      if (!selectedTicket) {
+        return;
+      }
+
+      // Detect current branch — always resolves, never throws
+      const branch = await detectCurrentBranch();
+
+      if (branch === null) {
+        vscode.window.showWarningMessage(
+          "AI Ticket Router: Could not detect the current git branch. Ticket selected without branch association."
+        );
+      }
+
+      const activeTicket: ActiveTicket = {
+        ticketId: selectedTicket.id,
+        identifier: selectedTicket.identifier,
+        title: selectedTicket.title,
+        projectName: selectedTicket.projectName,
+        branch,
+      };
+      await context.workspaceState.update("aitr.activeTicket", activeTicket);
+
+      vscode.window.showInformationMessage(
+        `AI Ticket Router: Picked ${selectedTicket.identifier} on branch ${branch ?? "unknown"}.`
+      );
     }),
 
     vscode.commands.registerCommand("aitr.debugFetchProjects", async () => {
