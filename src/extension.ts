@@ -207,27 +207,39 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      // Show QuickPick immediately with a loading spinner while fetching
       const qp = vscode.window.createQuickPick<TicketQuickPickItem>();
       qp.placeholder = "Loading tickets...";
       qp.matchOnDescription = true;
       qp.busy = true;
       qp.show();
 
+      // Register onDidHide immediately — it can fire any time (Esc, focus loss)
+      // before or after the fetch completes. hiddenPromise is the single resolution point.
+      let cancelled = false;
+      let resolveHidden!: () => void;
+      const hiddenPromise = new Promise<void>((r) => { resolveHidden = r; });
+      qp.onDidHide(() => {
+        cancelled = true;
+        qp.dispose();
+        resolveHidden();
+      });
+
       let tickets: TicketData[];
       try {
         tickets = await linearClient.getProjectTickets(selectedIds);
       } catch (err) {
-        qp.hide();
-        qp.dispose();
-        const message = err instanceof Error ? err.message : String(err);
-        vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
+        if (!cancelled) {
+          qp.hide(); // triggers onDidHide → disposes qp
+          const message = err instanceof Error ? err.message : String(err);
+          vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
+        }
         return;
       }
 
+      if (cancelled) { return; }
+
       if (tickets.length === 0) {
         qp.hide();
-        qp.dispose();
         vscode.window.showInformationMessage(
           "AI Ticket Router: No open tickets found in the selected projects."
         );
@@ -242,20 +254,15 @@ export async function activate(context: vscode.ExtensionContext) {
       qp.busy = false;
       qp.placeholder = "Select a ticket to work on";
 
-      // onDidAccept stores the selection and hides; onDidHide always resolves
       let selectedItem: TicketQuickPickItem | undefined;
       qp.onDidAccept(() => {
         selectedItem = qp.selectedItems[0];
-        qp.hide();
+        qp.hide(); // triggers onDidHide → resolves hiddenPromise
       });
 
-      const selectedTicket = await new Promise<TicketData | undefined>((resolve) => {
-        qp.onDidHide(() => {
-          qp.dispose();
-          resolve(selectedItem?.ticket);
-        });
-      });
+      await hiddenPromise;
 
+      const selectedTicket = selectedItem?.ticket;
       if (!selectedTicket) {
         return;
       }
