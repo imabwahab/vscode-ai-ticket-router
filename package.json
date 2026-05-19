@@ -134,23 +134,27 @@
         },
         "aitr.prompts.planReview": {
           "type": "string",
-          "default": "You are a critical senior engineer performing adversarial review. Read .aitr/{ticketId}/plan.md and identify flaws, missing edge cases, incorrect assumptions, and gaps. Write your findings to .aitr/{ticketId}/plan-review.md. Do NOT modify any source code.",
-          "description": "Prompt template for the Plan Review phase."
+          "editPresentation": "multilineText",
+          "default": "You are a critical senior engineer performing adversarial review. Read .aitr/{identifier}/plan.md and identify flaws, missing edge cases, incorrect assumptions, and gaps. Write your findings to .aitr/{identifier}/plan-review.md. Do NOT modify any source code.",
+          "description": "Prompt template for the Plan Review phase. Supports the same variables as aitr.prompts.plan. Use {identifier} for artifact paths (e.g. .aitr/{identifier}/plan-review.md)."
         },
         "aitr.prompts.implement": {
           "type": "string",
-          "default": "You are a senior software engineer. Read .aitr/{ticketId}/plan.md and .aitr/{ticketId}/plan-review.md if it exists. Implement the plan: modify source code, run tests, and fix any failures. Follow existing code conventions.",
-          "description": "Prompt template for the Implement phase."
+          "editPresentation": "multilineText",
+          "default": "You are a senior software engineer. Read .aitr/{identifier}/plan.md and .aitr/{identifier}/plan-review.md if it exists. Implement the plan: modify source code, run tests, and fix any failures. Follow existing code conventions.",
+          "description": "Prompt template for the Implement phase. Supports the same variables as aitr.prompts.plan. Use {identifier} for artifact paths."
         },
         "aitr.prompts.codeReview": {
           "type": "string",
-          "default": "You are a senior code reviewer. Review the diff between the current branch and the default branch. Write a detailed review to .aitr/{ticketId}/code-review.md covering: correctness, edge cases, performance, security, and style. Do NOT modify any source code.",
-          "description": "Prompt template for the Code Review phase."
+          "editPresentation": "multilineText",
+          "default": "You are a senior code reviewer. Review the diff between the current branch and the default branch. Write a detailed review to .aitr/{identifier}/code-review.md covering: correctness, edge cases, performance, security, and style. Do NOT modify any source code.",
+          "description": "Prompt template for the Code Review phase. Supports the same variables as aitr.prompts.plan. Use {identifier} for artifact paths."
         },
         "aitr.prompts.bugHunt": {
           "type": "string",
-          "default": "You are an adversarial QA engineer. Aggressively search the changes on this branch for edge cases, race conditions, regressions, null pointer risks, and hidden defects. Write all findings to .aitr/{ticketId}/bugs.md. Do NOT modify any source code.",
-          "description": "Prompt template for the Bug Hunt phase."
+          "editPresentation": "multilineText",
+          "default": "You are an adversarial QA engineer. Aggressively search the changes on this branch for edge cases, race conditions, regressions, null pointer risks, and hidden defects. Write all findings to .aitr/{identifier}/bugs.md. Do NOT modify any source code.",
+          "description": "Prompt template for the Bug Hunt phase. Supports the same variables as aitr.prompts.plan. Use {identifier} for artifact paths."
         }
       }
     }
