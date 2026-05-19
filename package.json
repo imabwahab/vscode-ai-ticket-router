@@ -49,6 +49,10 @@
         "title": "AI Ticket Router: Clear Linear API Key"
       },
       {
+        "command": "aitr.pickTicket",
+        "title": "AI Ticket Router: Pick Ticket"
+      },
+      {
         "command": "aitr.debugFetchProjects",
         "title": "AI Ticket Router (Debug): Fetch Projects"
       },
