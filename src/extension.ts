@@ -1,6 +1,9 @@
 import * as vscode from "vscode";
 import { LinearKeyStore } from "./auth/secretStorage";
 import { LinearClient } from "./linear/client";
+import { TicketsTreeProvider } from "./providers/ticketsTreeProvider";
+
+const SELECTED_PROJECT_IDS_KEY = "aitr.selectedProjectIds";
 
 export async function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel("AITR");
@@ -8,7 +11,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const keyStore = new LinearKeyStore(context.secrets);
   const linearClient = new LinearClient(keyStore, output);
+  const ticketsProvider = new TicketsTreeProvider();
 
+  context.subscriptions.push(ticketsProvider);
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider("aitr.ticketsView", ticketsProvider)
+  );
+
+  // --- Auth state ---
   let isAuthenticated = false;
   try {
     isAuthenticated = await keyStore.exists();
@@ -19,6 +29,26 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   vscode.commands.executeCommand("setContext", "aitr.authenticated", isAuthenticated);
 
+  // --- Project selection state ---
+  const savedIds = context.globalState.get<string[]>(SELECTED_PROJECT_IDS_KEY, []);
+  const hasSelectedProjects = savedIds.length > 0;
+  vscode.commands.executeCommand("setContext", "aitr.hasSelectedProjects", hasSelectedProjects);
+
+  // Reload saved project data into the tree on startup without blocking activation
+  if (isAuthenticated && hasSelectedProjects) {
+    linearClient
+      .listProjects()
+      .then((projects) => {
+        const selected = projects.filter((p) => savedIds.includes(p.id));
+        ticketsProvider.setSelectedProjects(selected);
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        output.appendLine(`[activation] Failed to reload saved projects: ${msg}`);
+      });
+  }
+
+  // --- Commands ---
   context.subscriptions.push(
     vscode.commands.registerCommand("aitr.hello", () => {
       vscode.window.showInformationMessage("AI Ticket Router is active and ready.");
@@ -41,6 +71,21 @@ export async function activate(context: vscode.ExtensionContext) {
         await keyStore.store(key.trim());
         vscode.commands.executeCommand("setContext", "aitr.authenticated", true);
         vscode.window.showInformationMessage("AI Ticket Router: Linear API key stored successfully.");
+
+        // Reload any saved project selection now that we have a valid key
+        const savedIds = context.globalState.get<string[]>(SELECTED_PROJECT_IDS_KEY, []);
+        if (savedIds.length > 0) {
+          linearClient
+            .listProjects()
+            .then((projects) => {
+              const selected = projects.filter((p) => savedIds.includes(p.id));
+              ticketsProvider.setSelectedProjects(selected);
+            })
+            .catch((err: unknown) => {
+              const msg = err instanceof Error ? err.message : String(err);
+              output.appendLine(`[setLinearKey] Failed to reload saved projects: ${msg}`);
+            });
+        }
       } catch {
         vscode.window.showErrorMessage("AI Ticket Router: Failed to store the API key. Please try again.");
       }
@@ -60,6 +105,82 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage("AI Ticket Router: Linear API key removed successfully.");
       } catch {
         vscode.window.showErrorMessage("AI Ticket Router: Failed to remove the API key. Please try again.");
+      }
+    }),
+
+    vscode.commands.registerCommand("aitr.selectProjects", async () => {
+      try {
+        const projects = await linearClient.listProjects();
+
+        if (projects.length === 0) {
+          vscode.window.showInformationMessage(
+            "AI Ticket Router: No Linear projects found in your workspace."
+          );
+          return;
+        }
+
+        const currentIds = context.globalState.get<string[]>(SELECTED_PROJECT_IDS_KEY, []);
+
+        const picks = await vscode.window.showQuickPick(
+          projects.map((p) => ({
+            label: p.name,
+            description: p.teamName,
+            id: p.id,
+            picked: currentIds.includes(p.id),
+          })),
+          {
+            canPickMany: true,
+            title: "AI Ticket Router: Select Active Projects",
+            placeHolder: "Choose the Linear projects you are working on",
+          }
+        );
+
+        // undefined means the user dismissed without confirming — preserve the existing selection
+        if (picks === undefined) {
+          return;
+        }
+
+        const selectedIds = picks.map((p) => p.id);
+        await context.globalState.update(SELECTED_PROJECT_IDS_KEY, selectedIds);
+
+        const hasProjects = selectedIds.length > 0;
+        vscode.commands.executeCommand("setContext", "aitr.hasSelectedProjects", hasProjects);
+
+        const selectedProjects = projects.filter((p) => selectedIds.includes(p.id));
+        ticketsProvider.setSelectedProjects(selectedProjects);
+
+        if (hasProjects) {
+          vscode.window.showInformationMessage(
+            `AI Ticket Router: ${selectedIds.length} project${selectedIds.length === 1 ? "" : "s"} selected.`
+          );
+        } else {
+          vscode.window.showInformationMessage(
+            "AI Ticket Router: No projects selected. Ticket view cleared."
+          );
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
+      }
+    }),
+
+    vscode.commands.registerCommand("aitr.refreshTickets", async () => {
+      const selectedIds = context.globalState.get<string[]>(SELECTED_PROJECT_IDS_KEY, []);
+
+      if (selectedIds.length === 0) {
+        vscode.window.showInformationMessage(
+          "AI Ticket Router: No projects selected. Run 'Select Projects' first."
+        );
+        return;
+      }
+
+      try {
+        const projects = await linearClient.listProjects();
+        const selected = projects.filter((p) => selectedIds.includes(p.id));
+        ticketsProvider.setSelectedProjects(selected);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`AI Ticket Router: ${message}`);
       }
     }),
 
@@ -110,12 +231,6 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("aitr.disconnect", () =>
       vscode.window.showInformationMessage("AI Ticket Router: Disconnect — coming soon.")
-    ),
-    vscode.commands.registerCommand("aitr.selectProjects", () =>
-      vscode.window.showInformationMessage("AI Ticket Router: Select Projects — coming soon.")
-    ),
-    vscode.commands.registerCommand("aitr.refreshTickets", () =>
-      vscode.window.showInformationMessage("AI Ticket Router: Refresh — coming soon.")
     ),
     vscode.commands.registerCommand("aitr.runPlan", () =>
       vscode.window.showInformationMessage("AI Ticket Router: Plan phase — coming soon.")

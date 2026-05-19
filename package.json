@@ -17,7 +17,7 @@
         {
           "id": "aitr-sidebar",
           "title": "AI Ticket Router",
-          "icon": "$(rocket)"
+          "icon": "resources/sidebar-icon.svg"
         }
       ]
     },
@@ -92,6 +92,17 @@
       {
         "command": "aitr.runBugHunt",
         "title": "Run Bug Hunt Phase"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "aitr.ticketsView",
+        "contents": "No Linear projects selected.\n\nSelect the projects you are actively working on to see their tickets here.\n\n[Select Projects](command:aitr.selectProjects)",
+        "when": "aitr.authenticated && !aitr.hasSelectedProjects"
+      },
+      {
+        "view": "aitr.setupView",
+        "contents": "Welcome to AI Ticket Router.\n\nConnect your Linear account to get started.\n\n[Set Linear API Key](command:aitr.setLinearKey)"
       }
     ],
     "menus": {
