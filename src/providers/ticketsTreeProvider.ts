@@ -11,7 +11,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
   }
 }
 
-export class TicketsTreeProvider implements vscode.TreeDataProvider<ProjectTreeItem> {
+export class TicketsTreeProvider implements vscode.TreeDataProvider<ProjectTreeItem>, vscode.Disposable {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
@@ -30,7 +30,14 @@ export class TicketsTreeProvider implements vscode.TreeDataProvider<ProjectTreeI
     return element;
   }
 
-  getChildren(): ProjectTreeItem[] {
+  getChildren(element?: ProjectTreeItem): ProjectTreeItem[] {
+    if (element) {
+      return [];
+    }
     return this.selectedProjects.map((p) => new ProjectTreeItem(p));
+  }
+
+  dispose(): void {
+    this._onDidChangeTreeData.dispose();
   }
 }

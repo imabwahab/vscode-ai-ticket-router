@@ -13,6 +13,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const linearClient = new LinearClient(keyStore, output);
   const ticketsProvider = new TicketsTreeProvider();
 
+  context.subscriptions.push(ticketsProvider);
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("aitr.ticketsView", ticketsProvider)
   );
@@ -70,6 +71,21 @@ export async function activate(context: vscode.ExtensionContext) {
         await keyStore.store(key.trim());
         vscode.commands.executeCommand("setContext", "aitr.authenticated", true);
         vscode.window.showInformationMessage("AI Ticket Router: Linear API key stored successfully.");
+
+        // Reload any saved project selection now that we have a valid key
+        const savedIds = context.globalState.get<string[]>(SELECTED_PROJECT_IDS_KEY, []);
+        if (savedIds.length > 0) {
+          linearClient
+            .listProjects()
+            .then((projects) => {
+              const selected = projects.filter((p) => savedIds.includes(p.id));
+              ticketsProvider.setSelectedProjects(selected);
+            })
+            .catch((err: unknown) => {
+              const msg = err instanceof Error ? err.message : String(err);
+              output.appendLine(`[setLinearKey] Failed to reload saved projects: ${msg}`);
+            });
+        }
       } catch {
         vscode.window.showErrorMessage("AI Ticket Router: Failed to store the API key. Please try again.");
       }
